@@ -1,0 +1,547 @@
+---
+title: "Homicides in Mexico 2006-2015"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    social: menu
+    source_code: embed
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(raster)
+library(sp)
+library(rgdal)
+library(readr)
+library(tidyverse)
+library(crosstalk)
+library (plotly)
+library(dplyr)
+library(ggplot2)
+library(rasterVis)
+library(doBy)
+library(sp)
+library(maptools)
+if (!require(gpclib)) install.packages("gpclib", type="source")
+gpclibPermit()
+library(forcats)
+library(ggmap)
+library(viridis)
+library(stringi)
+library(flexdashboard)
+library(shiny)
+```
+
+```{r, include=FALSE}
+hom<- read_csv("perfiles_homicidios.csv")
+hom2<-read_csv("perfiles_homicidios.csv")
+
+hom$edo_code[hom$edo_code=="01" ] <- "1"
+hom$edo_code[hom$edo_code=="02" ] <- "2"
+hom$edo_code[hom$edo_code=="03" ] <- "3"
+hom$edo_code[hom$edo_code=="04" ] <- "4"
+hom$edo_code[hom$edo_code=="05" ] <- "5"
+hom$edo_code[hom$edo_code=="06" ] <- "6"
+hom$edo_code[hom$edo_code=="07" ] <- "7"
+hom$edo_code[hom$edo_code=="08" ] <- "8"
+hom$edo_code[hom$edo_code=="09" ] <- "9"
+
+unique(hom$edo_code)
+
+dir_main = "/Users/eves/Documents/"
+dir_adm = paste(dir_main,"Spring 2018/Data Viz/Visual experiment/mbaprgw", sep="")
+mex_shp1 <- readOGR(dsn = dir_adm, layer = "mbaprgw")
+
+hom$edo_code <- as.numeric(hom$edo_code)
+hom$pob <- as.numeric(hom$pob)
+
+
+```
+
+```{r, include=FALSE}
+#Theme functions for maps and color map
+#source: https://timogrossenbacher.ch/2016/12/beautiful-thematic-maps-with-ggplot2-only/
+
+theme_map <- function(...) {
+  theme_minimal() +
+  theme(
+    text = element_text(family="Helvetica", size = 10, color = "#22211d"),
+    axis.line = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    #panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
+    panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
+    panel.grid.minor = element_blank(),
+    #plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+    #panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+    #legend.background = element_rect(fill = "#f5f5f2", color = NA),
+    panel.border = element_blank(),
+    ...
+  )
+}
+
+```
+
+National Level
+=======================================================================
+
+Row {data-width=700}
+-----------------------------------------------------------------------
+
+```{r, echo=FALSE}
+hom2 %>%
+  filter(sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos") %>%
+plot_ly( x = ~year, y = ~homtot, type = "bar") %>%
+  layout(title ="Number of Homicides per year")
+
+
+
+```
+
+
+Row {.tabset .tabset-fade}
+-----------------------------------------------------------------------
+### Map 2006
+```{r, echo=FALSE}
+######## 2006
+
+hom_6 <-
+hom %>%
+  filter(year == "2006", sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos") 
+
+
+hom_6$edo_code <- as.numeric(hom_6$edo_code)
+mex_shp1_fort <- fortify(mex_shp1, region="COV_ID") %>%
+  mutate(id=as.numeric(id))
+
+map_data_6<- mex_shp1_fort %>%
+  left_join(hom_6, by = c("id"= "edo_code"))
+
+
+#Map
+
+no_classes <- 5
+labels <- c()
+
+quantiles_6<- quantile(map_data_6$thom, 
+                      probs = seq(0, 1, length.out = no_classes + 1), na.rm = TRUE)
+
+labels <- c()
+for(idx in 1:length(quantiles_6)){
+  labels <- c(labels, paste0(round(quantiles_6[idx], 2), 
+                             " – ", 
+                             round(quantiles_6[idx + 1], 2)))
+}
+
+labels <- labels[1:length(labels)-1]
+
+map_data_6$Hom_edo_quantiles <- cut(map_data_6$thom, 
+                                     breaks = quantiles_6, 
+                                     labels = labels, 
+                                     include.lowest = T)
+
+
+map_data_6_p<- ggplot() +
+        #  polygons with data
+        geom_polygon(data = map_data_6, aes(fill = Hom_edo_quantiles,
+                                          x = long, 
+                                          y = lat, 
+                                          group = group)) +
+        # rayon outline
+        geom_path(data = map_data_6, aes(x = long, 
+                                            y = lat, 
+                                            group = group), 
+                  color = "grey", size = 0.1) +
+        
+        # for projection
+        coord_equal() +
+      
+        # add the previously defined basic theme + color
+        theme_map() +
+    
+        # labels
+        labs(x = NULL, 
+             y = NULL, 
+             title = "Homicide Rate in 2006 ", 
+             subtitle = "Homicide rate per 100,000 inhabitants", 
+             caption = "Source: Data Civica") +
+   theme(legend.position = "bottom") +
+        scale_fill_viridis(
+          option = "magma",
+          discrete = T,
+          direction = -1,
+          name = "",
+          guide = guide_legend(
+          keyheight = unit(3, units = "mm"),
+          keywidth = unit(6, units = "mm"),
+          title.position = 'top',
+          reverse=F,
+          title.hjust = 0.5,
+          label.hjust = 0.5
+          ))
+
+
+#p<-ggplotly(map_data_6_p) %>%
+#  highlight(
+#    "plotly_hover",
+#    selected = attrs_selected(line = list(color = "black"))
+#) %>%
+#  widgetframe::frameWidget()
+
+#p
+
+map_data_6_p
+```
+
+###Map 2010
+
+```{r, echo= FALSE}
+hom_10 <-
+hom %>%
+  filter(year == "2010", sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos") 
+
+
+hom_10$edo_code <- as.numeric(hom_10$edo_code)
+mex_shp1_fort <- fortify(mex_shp1, region="COV_ID") %>%
+  mutate(id=as.numeric(id))
+
+map_data_10<- mex_shp1_fort %>%
+  left_join(hom_10, by = c("id"= "edo_code"))
+
+
+#Map
+
+no_classes <- 5
+labels <- c()
+
+quantiles_10<- quantile(map_data_10$thom, 
+                      probs = seq(0, 1, length.out = no_classes + 1), na.rm = TRUE)
+
+labels <- c()
+for(idx in 1:length(quantiles_10)){
+  labels <- c(labels, paste0(round(quantiles_10[idx], 2), 
+                             " – ", 
+                             round(quantiles_10[idx + 1], 2)))
+}
+
+labels <- labels[1:length(labels)-1]
+
+map_data_10$Hom_edo_quantiles <- cut(map_data_10$thom, 
+                                     breaks = quantiles_10, 
+                                     labels = labels, 
+                                     include.lowest = T)
+
+
+map_data_10_p<- ggplot() +
+        #  polygons with data
+        geom_polygon(data = map_data_10, aes(fill = Hom_edo_quantiles,
+                                          x = long, 
+                                          y = lat, 
+                                          group = group)) +
+        # rayon outline
+        geom_path(data = map_data_10, aes(x = long, 
+                                            y = lat, 
+                                            group = group), 
+                  color = "grey", size = 0.1) +
+        
+        # for projection
+        coord_equal() +
+      
+        # add the previously defined basic theme + color
+        theme_map() +
+    
+        # labels
+        labs(x = NULL, 
+             y = NULL, 
+             title = "Homicide Rate in 2010 ", 
+             subtitle = "Homicide rate per 100,000 inhabitants", 
+             caption = "Source: Data Civica") +
+   theme(legend.position = "bottom") +
+        scale_fill_viridis(
+          option = "magma",
+          discrete = T,
+          direction = -1,
+          name = "",
+          guide = guide_legend(
+          keyheight = unit(3, units = "mm"),
+          keywidth = unit(6, units = "mm"),
+          title.position = 'top',
+          reverse=F,
+          title.hjust = 0.5,
+          label.hjust = 0.5
+          ))
+
+map_data_10_p
+
+#p<- ggplotly(map_data_15_p) %>%
+#  highlight(
+#    "plotly_hover",
+#    selected = attrs_selected(line = list(color = "black"))
+#) %>%
+#  widgetframe::frameWidget()
+
+#p
+```
+
+###Map 2015
+
+```{r, echo= FALSE}
+hom_15 <-
+hom %>%
+  filter(year == "2015", sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos") 
+
+
+hom_15$edo_code <- as.numeric(hom_15$edo_code)
+mex_shp1_fort <- fortify(mex_shp1, region="COV_ID") %>%
+  mutate(id=as.numeric(id))
+
+map_data_15<- mex_shp1_fort %>%
+  left_join(hom_15, by = c("id"= "edo_code"))
+
+
+#Map
+
+no_classes <- 5
+labels <- c()
+
+quantiles_15<- quantile(map_data_15$thom, 
+                      probs = seq(0, 1, length.out = no_classes + 1), na.rm = TRUE)
+
+labels <- c()
+for(idx in 1:length(quantiles_15)){
+  labels <- c(labels, paste0(round(quantiles_15[idx], 2), 
+                             " – ", 
+                             round(quantiles_15[idx + 1], 2)))
+}
+
+labels <- labels[1:length(labels)-1]
+
+map_data_15$Hom_edo_quantiles <- cut(map_data_15$thom, 
+                                     breaks = quantiles_15, 
+                                     labels = labels, 
+                                     include.lowest = T)
+
+
+map_data_15_p<- ggplot() +
+        #  polygons with data
+        geom_polygon(data = map_data_15, aes(fill = Hom_edo_quantiles,
+                                          x = long, 
+                                          y = lat, 
+                                          group = group)) +
+        # rayon outline
+        geom_path(data = map_data_15, aes(x = long, 
+                                            y = lat, 
+                                            group = group), 
+                  color = "grey", size = 0.1) +
+        
+        # for projection
+        coord_equal() +
+      
+        # add the previously defined basic theme + color
+        theme_map() +
+    
+        # labels
+        labs(x = NULL, 
+             y = NULL, 
+             title = "Homicide Rate in 2015 ", 
+             subtitle = "Homicide rate per 100,000 inhabitants", 
+             caption = "Source: Data Civica") +
+   theme(legend.position = "bottom") +
+        scale_fill_viridis(
+          option = "magma",
+          discrete = T,
+          direction = -1,
+          name = "",
+          guide = guide_legend(
+          keyheight = unit(3, units = "mm"),
+          keywidth = unit(6, units = "mm"),
+          title.position = 'top',
+          reverse=F,
+          title.hjust = 0.5,
+          label.hjust = 0.5
+          ))
+
+map_data_15_p
+
+#p<- ggplotly(map_data_15_p) %>%
+#  highlight(
+#    "plotly_hover",
+#    selected = attrs_selected(line = list(color = "black"))
+#) %>%
+#  widgetframe::frameWidget()
+
+#p
+```
+
+State Level
+=======================================================================
+
+Row {data-width=600}
+-----------------------------------------------------------------------
+### Homicides per state
+```{r, echo=FALSE}
+table_homicides_state <- hom2 %>%
+  filter(sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos") %>%
+ggplot(aes(x = edo_nom, y = homtot)) + geom_col(aes(fill = year)) + facet_wrap(~year) + theme_minimal() + theme(axis.title = element_blank(), axis.text.x=element_blank()) + theme(legend.position = "none") + ggtitle("Total Homicides in Mexico per State") 
+
+table_homicides_state = ggplotly(table_homicides_state)
+
+table_homicides_state
+```
+
+Row  
+-----------------------------------------------------------------------
+### Evolution of Homicides per state
+```{r, fig.width=10, fig.height=7, echo=FALSE}
+#Geomline per title
+# Source code: http://rpubs.com/cpsievert/275511 , we add modifications to the code
+hom_total <- hom2 %>%
+  filter(sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos")
+
+hom_total$year <- as.Date(as.character(hom_total$year), format = "%Y")
+brks <- hom_total$year[seq(1, length(hom_total$year))]
+lbls <- lubridate::year(brks)
+
+# generally speaking, use a "unique" key for filter, 
+# especially when you have multiple filters!
+h <- SharedData$new(hom_total)
+g_hom <- ggplot(h) + 
+  geom_line(aes(year, thom, group = edo_nom)) + 
+  ggtitle("Filter a state")+
+  labs(y="Homicide rate")+
+  theme_bw()
+filter <- bscols(
+  filter_select("id", "Select a state", h, ~edo_nom),
+  ggplotly(g_hom, dynamicTicks = TRUE),
+  widths = c(15,15)
+)
+
+h2 <- SharedData$new(hom_total, ~edo_nom, "Select a state")
+g_hom <- ggplot(h2) + 
+  geom_line(aes(year, thom, group = edo_nom)) +
+  ggtitle("Compare between states")+
+  labs(y="Homicide rate")+
+  theme_bw()
+select <- highlight(
+  ggplotly(g_hom, tooltip = "State"),
+  selectize = TRUE, dynamic = TRUE, persistent = TRUE
+)
+
+x<-bscols(filter, select)
+x
+
+```
+
+Gender
+=======================================================================
+
+Row 
+-----------------------------------------------------------------------
+### Total numbers of deaths
+
+```{r, echo=FALSE}
+
+total<- hom_total%>%
+  summarise(sum(homtot))
+```
+
+```{r, echo=FALSE}
+valueBox("195,909", icon = "person", color = "black")
+```
+
+
+```{r, echo=FALSE}
+#Total Homicides MALE
+hom_male <-hom2  %>%
+ filter(sex == "Hombre", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos")
+
+total_male <- hom_male%>%
+ summarise(sum(homtot))
+
+```
+
+
+
+### Male homicides
+```{r, echo=FALSE}
+valueBox("173,936", icon = "fa-male", color = "aqua")
+```
+
+
+```{r, echo=FALSE}
+#Total Homicide FEMALE
+
+hom_female <- hom2 %>%
+ filter(sex == "Mujer", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos")
+
+total_female<- hom_female%>%
+  summarise(sum(homtot))
+
+```
+### Female homicides
+```{r, echo=FALSE}
+
+valueBox("21,045", icon = "fa-female", color = "orange")
+
+```
+
+Row 
+-----------------------------------------------------------------------
+```{r, echo=FALSE}
+hom_male <-hom2  %>%
+ filter(sex == "Hombre", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos")
+
+colnames(hom_male)[8] <- "thom_hom"
+
+hom_male_t<-hom_male %>%
+  select("year", "thom_hom")
+
+hom_female <- hom2 %>%
+  filter(sex == "Mujer", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos")
+
+colnames(hom_female)[8] <- "thom_female"
+
+hom_female_t<-hom_female %>%
+  select("year", "thom_female")
+
+hom_tot_t<- hom_female_t %>%
+  left_join(hom_male_t, by ="year")
+
+hom_tot_t$thom_female <-as.numeric(hom_tot_t$thom_female)
+hom_tot_t$thom_hom  <-as.numeric(hom_tot_t$thom_hom)
+
+
+hom_tot_t$year <- as.Date(as.character(hom_tot_t$year), format = "%Y")
+
+library(lubridate)
+
+
+# labels and breaks for X axis text
+brks <- hom_tot_t$year[seq(1, length(hom_tot_t$year))]
+lbls <- lubridate::year(brks)
+
+
+# plot
+p<-ggplot(hom_tot_t, aes(x=year)) + 
+  geom_line(aes(y=thom_female, col="Female rate")) + 
+  geom_line(aes(y=thom_hom, col="Male rate")) + 
+  labs(title="Time Series of Homicites per 100,000 inhabitants",
+       colour ="Gender group",
+       subtitle="National level, from 2006 to 2011", 
+       caption="Source: Data Civica", y="Homicide rate") + 
+  scale_x_date(labels = lbls, 
+               breaks = brks)
+
+p = ggplotly(p)
+
+p
+```
+
