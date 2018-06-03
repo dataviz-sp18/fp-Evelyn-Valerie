@@ -2,7 +2,11 @@
 
 # Homicides in Mexico: 2006 to 2015
 
-**Please find the link to the dashboard here**
+**Please find the link to the dashboard here** : https://uc-dataviz.github.io/fp-Evelyn-Valerie/#national-level
+
+After opening the browser, please refrech the page, so the state graph can be correctly display.
+
+**The shinny app is contained in the files of this repository, pleas open it from the repository**
 
 
 
