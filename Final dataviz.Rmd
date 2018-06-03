@@ -1,0 +1,633 @@
+---
+title: "Homicides in Mexico: 2006 to 2015"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: sandstone
+    orientation: rows
+    vertical_layout: fill
+    social: menu
+    source: embed
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(raster)
+library(sp)
+library(rgdal)
+library(readr)
+library(tidyverse)
+library(crosstalk)
+library (plotly)
+library(dplyr)
+library(ggplot2)
+library(rasterVis)
+library(doBy)
+library(sp)
+library(maptools)
+if (!require(gpclib)) install.packages("gpclib", type="source")
+gpclibPermit()
+library(forcats)
+library(ggmap)
+library(viridis)
+library(stringi)
+library(flexdashboard)
+library(shiny)
+```
+
+```{r, include=FALSE}
+#Load database
+hom<- read_csv("perfiles_homicidios.csv")
+hom2<-read_csv("perfiles_homicidios.csv")
+
+#clean database
+hom$edo_code[hom$edo_code=="01" ] <- "1"
+hom$edo_code[hom$edo_code=="02" ] <- "2"
+hom$edo_code[hom$edo_code=="03" ] <- "3"
+hom$edo_code[hom$edo_code=="04" ] <- "4"
+hom$edo_code[hom$edo_code=="05" ] <- "5"
+hom$edo_code[hom$edo_code=="06" ] <- "6"
+hom$edo_code[hom$edo_code=="07" ] <- "7"
+hom$edo_code[hom$edo_code=="08" ] <- "8"
+hom$edo_code[hom$edo_code=="09" ] <- "9"
+
+unique(hom$edo_code)
+
+#set directories
+dir_main = "/Users/eves/Documents/"
+dir_adm = paste(dir_main,"Spring 2018/Data Viz/Visual experiment/mbaprgw", sep="")
+mex_shp1 <- readOGR(dsn = dir_adm, layer = "mbaprgw")
+
+hom$edo_code <- as.numeric(hom$edo_code)
+hom$pob <- as.numeric(hom$pob)
+
+
+```
+
+```{r, include=FALSE}
+#Theme functions for maps and color map
+#source: https://timogrossenbacher.ch/2016/12/beautiful-thematic-maps-with-ggplot2-only/
+
+theme_map <- function(...) {
+  theme_minimal() +
+  theme(
+    text = element_text(family="Helvetica", size = 10, color = "#22211d"),
+    axis.line = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    #panel.grid.minor = element_line(color = "#ebebe5", size = 0.2),
+    panel.grid.major = element_line(color = "#ebebe5", size = 0.2),
+    panel.grid.minor = element_blank(),
+    #plot.background = element_rect(fill = "#f5f5f2", color = NA), 
+    #panel.background = element_rect(fill = "#f5f5f2", color = NA), 
+    #legend.background = element_rect(fill = "#f5f5f2", color = NA),
+    panel.border = element_blank(),
+    ...
+  )
+}
+
+```
+
+
+
+National Level {.storyboard}
+=======================================================================
+
+### **Evolution of homicides from 2006 to 2015**. From a decreasing trend to a rising one.
+
+```{r, echo=FALSE}
+hom2<-read_csv("perfiles_homicidios.csv")
+hom2 %>%
+  filter(sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos") %>%
+plot_ly( x = ~year, y = ~homtot, type = "bar") %>%
+  layout(title ="Number of Homicides per year")
+```
+
+***
+
+The rise in homicides in this period was evident. From 1990 to 2007, the national rate of homicides had been decreasing systematically year by year, starting from 2008 this trend reverted. 
+
+**The evolution of the homicides rate can be divided into two periods:**
+ - 2008 to 2011, with a steady increase and reaching and historical peak
+ - 20011 to 2017, when there has been a continuous decrease in the number of homicides, but never recovers to the levels of 2008.
+
+**The first episode can be largely explained by the “War Against Drugs”**, implemented in 2006 by the federal government, and especially by the “Joint Operation”. The joint operations were a security strategy in which federal security forces  assisted the local police in operations against drug trafficking.
+
+**In the second episode**, the reduction of homicides started at the end of 2011, due to the changed of a government strategy of a new administration, as well as the disintegration of one of the main cartel organizations *“ Los Zetas”* in 2012.
+
+
+### **Number of Homicides among states**. Homicide levels present a different variation among the states over the time
+
+```{r, echo=FALSE}
+table_homicides_state <- hom2 %>%
+  filter(sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos") %>%
+ggplot(aes(x = edo_nom, y = homtot)) + geom_col(aes(fill = year)) + facet_wrap(~year) + theme_minimal() + theme(axis.title = element_blank(), axis.text.x=element_blank()) + theme(legend.position = "none") + ggtitle("Total Homicides in Mexico per State") 
+
+table_homicides_state = ggplotly(table_homicides_state)
+
+table_homicides_state
+```
+
+***
+We can identify two groups of states: 
+
+**Episodic violence – Primary drug-related ** : a dramatic increase in 2008 followed by a remarkable fall in homicides number from 2011 to 2015. The logic behind this trend the implementation of “Join operations” on those states. 
+
+**Continuous violence – No primary drug-related **: a more moderate and continuous increase. These states where not traditionally identified among in the drug territory. Other variables, beyond drug trafficking, influenced the increase in homicides
+
+The largest bar correspond the state of Chihuahua, which is historically one of the most violent a states, mainly related with drug trafficking.
+
+
+### **Map 2006: before the rise of violence** Homicides concentated in drug violence territories
+
+
+```{r, echo=FALSE}
+######## 2006
+
+hom_6 <-
+hom %>%
+  filter(year == "2006", sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos") 
+
+
+hom_6$edo_code <- as.numeric(hom_6$edo_code)
+mex_shp1_fort <- fortify(mex_shp1, region="COV_ID") %>%
+  mutate(id=as.numeric(id))
+
+map_data_6<- mex_shp1_fort %>%
+  left_join(hom_6, by = c("id"= "edo_code"))
+
+
+#Map
+
+#Create quantile maps
+no_classes <- 5
+labels <- c()
+
+quantiles_6<- quantile(map_data_6$thom, 
+                      probs = seq(0, 1, length.out = no_classes + 1), na.rm = TRUE)
+
+labels <- c()
+for(idx in 1:length(quantiles_6)){
+  labels <- c(labels, paste0(round(quantiles_6[idx], 2), 
+                             " – ", 
+                             round(quantiles_6[idx + 1], 2)))
+}
+
+labels <- labels[1:length(labels)-1]
+
+map_data_6$Hom_edo_quantiles <- cut(map_data_6$thom, 
+                                     breaks = quantiles_6, 
+                                     labels = labels, 
+                                     include.lowest = T)
+
+
+map_data_6_p<- ggplot() +
+        #  polygons with data
+        geom_polygon(data = map_data_6, aes(fill = Hom_edo_quantiles,
+                                          x = long, 
+                                          y = lat, 
+                                          group = group)) +
+        # rayon outline
+        geom_path(data = map_data_6, aes(x = long, 
+                                            y = lat, 
+                                            group = group,
+                                         text = paste("State:", edo_nom)), 
+                  color = "grey", size = 0.1) +
+        
+        # for projection
+        coord_equal() +
+      
+        # add the previously defined basic theme + color
+        theme_map() +
+    
+        # labels
+        labs(x = NULL, 
+             y = NULL, 
+             title = "Homicide Rate in 2006 ", 
+             subtitle = "Homicide rate per 100,000 inhabitants", 
+             caption = "Source: Data Civica") +
+   theme(legend.position = "bottom") +
+        scale_fill_viridis(
+          option = "magma",
+          name = "Homicide rate",
+          discrete = T,
+          direction = -1,
+          guide = guide_legend(
+          keyheight = unit(3, units = "mm"),
+          keywidth = unit(6, units = "mm"),
+          title.position = 'top',
+          reverse=F,
+          title.hjust = 0.5,
+          label.hjust = 0.5
+          ))
+
+
+ggplotly(map_data_6_p)
+
+```
+
+***
+- By 2016, Chihuahua, Baja California, Chihuahua, Guerrero y Oaxaca (in black) were the states that presented higher homicide rates. All of them, except by Oaxaca, the violence was mainly related with confrontations among drug cartels and also among cartels and police forces.
+
+- The range with the highest in homicide rate is between 12 to 23 homicides per 100,000 habitats
+
+### **The most violent year**. Between 2006 and 2011, the homicide rate increased in all the states, with the exception of Campeche.
+
+
+```{r, echo= FALSE}
+hom_11 <-
+hom %>%
+  filter(year == "2011", sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos") 
+
+
+hom_11$edo_code <- as.numeric(hom_11$edo_code)
+mex_shp1_fort <- fortify(mex_shp1, region="COV_ID") %>%
+  mutate(id=as.numeric(id))
+
+map_data_11<- mex_shp1_fort %>%
+  left_join(hom_11, by = c("id"= "edo_code"))
+
+
+#Map
+
+no_classes <- 5
+labels <- c()
+
+quantiles_11<- quantile(map_data_11$thom, 
+                      probs = seq(0, 1, length.out = no_classes + 1), na.rm = TRUE)
+
+labels <- c()
+for(idx in 1:length(quantiles_11)){
+  labels <- c(labels, paste0(round(quantiles_11[idx], 2), 
+                             " – ", 
+                             round(quantiles_11[idx + 1], 2)))
+}
+
+labels <- labels[1:length(labels)-1]
+
+map_data_11$Hom_edo_quantiles <- cut(map_data_11$thom, 
+                                     breaks = quantiles_11, 
+                                     labels = labels, 
+                                     include.lowest = T)
+
+
+map_data_11_p<- ggplot() +
+        #  polygons with data
+        geom_polygon(data = map_data_11, aes(fill = Hom_edo_quantiles,
+                                          x = long, 
+                                          y = lat, 
+                                          group = group)) +
+        # rayon outline
+        geom_path(data = map_data_11, aes(x = long, 
+                                            y = lat, 
+                                            group = group,
+                                            text = paste("State:", edo_nom)), 
+                  color = "grey", size = 0.1) +
+        
+        # for projection
+        coord_equal() +
+      
+        # add the previously defined basic theme + color
+        theme_map() +
+    
+        # labels
+        labs(x = NULL, 
+             y = NULL, 
+             title = "Homicide Rate in 2011 ", 
+             subtitle = "Homicide rate per 100,000 inhabitants", 
+             caption = "Source:Data Civica") +
+   theme(legend.position = "bottom") +
+        scale_fill_viridis(
+          option = "magma",
+          discrete = T,
+          direction = -1,
+          name = "Homicide rate",
+          guide = guide_legend(
+          keyheight = unit(3, units = "mm"),
+          keywidth = unit(6, units = "mm"),
+          title.position = 'top',
+          reverse=F,
+          title.hjust = 0.5,
+          label.hjust = 0.5
+          ))
+
+
+ggplotly(map_data_11_p)
+```
+
+***
+- The highest homicide rate range was 127 per 100, 000 habs., that corresponded to Chihuahua, followed by Sinaloa with 69 per 100,000 habs. The violence intensified particularly in the north of the country and in states of the Pacific coast 
+
+- The states that presented a significant increase in violence related with “Joint Operations” were: Aguascalientes, Baja California Michoacán, Guerrero, Nuevo León, Tamaulipas, Chihuahua, Colima, Sinaloa, Jalisco, Nayarit y Durango.
+
+- Group of states with high increment in their homicide rates but no join operations Nayarit, Coahuila, Morelos, Quintana Roo and Sonora.
+
+### **Coming back to peace?** violence had reduced significantly in many of the states, especially the ones in the center and the ones in which joint operations 
+
+
+```{r, echo= FALSE}
+hom_15 <-
+hom %>%
+  filter(year == "2015", sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos") 
+
+
+hom_15$edo_code <- as.numeric(hom_15$edo_code)
+mex_shp1_fort <- fortify(mex_shp1, region="COV_ID") %>%
+  mutate(id=as.numeric(id))
+
+map_data_15<- mex_shp1_fort %>%
+  left_join(hom_15, by = c("id"= "edo_code"))
+
+
+#Map
+
+no_classes <- 5
+labels <- c()
+
+quantiles_15<- quantile(map_data_15$thom, 
+                      probs = seq(0, 1, length.out = no_classes + 1), na.rm = TRUE)
+
+labels <- c()
+for(idx in 1:length(quantiles_15)){
+  labels <- c(labels, paste0(round(quantiles_15[idx], 2), 
+                             " – ", 
+                             round(quantiles_15[idx + 1], 2)))
+}
+
+labels <- labels[1:length(labels)-1]
+
+map_data_15$Hom_edo_quantiles <- cut(map_data_15$thom, 
+                                     breaks = quantiles_15, 
+                                     labels = labels, 
+                                     include.lowest = T)
+
+
+map_data_15_p<- ggplot() +
+        #  polygons with data
+        geom_polygon(data = map_data_15, aes(fill = Hom_edo_quantiles,
+                                          x = long, 
+                                          y = lat, 
+                                          group = group)) +
+        # rayon outline
+        geom_path(data = map_data_15, aes(x = long, 
+                                            y = lat, 
+                                            group = group,
+                                            text = paste("State:", edo_nom)), 
+                  color = "grey", size = 0.1) +
+        
+        # for projection
+        coord_equal() +
+      
+        # add the previously defined basic theme + color
+        theme_map() +
+    
+        # labels
+        labs(x = NULL, 
+             y = NULL, 
+             title = "Homicide Rate in 2015 ", 
+             subtitle = "Homicide rate per 100,000 inhabitants", 
+             caption = "Source: Data Civica") +
+   theme(legend.position = "bottom") +
+        scale_fill_viridis(
+          option = "magma",
+          discrete = T,
+          direction = -1,
+          name = "Homicide rate",
+          guide = guide_legend(
+          keyheight = unit(3, units = "mm"),
+          keywidth = unit(6, units = "mm"),
+          title.position = 'top',
+          reverse=F,
+          title.hjust = 0.5,
+          label.hjust = 0.5
+          ))
+
+ggplotly(map_data_15_p)
+
+#p<- ggplotly(map_data_15_p) %>%
+#  highlight(
+#    "plotly_hover",
+#    selected = attrs_selected(line = list(color = "black"))
+#) %>%
+#  widgetframe::frameWidget()
+
+#p
+```
+
+***
+
+- The violence had reduced significantly in many of the states, especially the ones in the center on the country and the ones in which joint operations, with the exception of Michoacán.
+
+- The highest homicide rate was in the state of Guerrero of 68 homicides per 100, 000 hab.
+
+- States like Puebla, Colima, and Baja California Sur, presented a very moderated but steady increment during the whole period of analysis.The increment has been associated with new criminal markets, dedicated to the illegal extraction and sale of hydrocarbons and new ways of extortion.
+
+
+State Level
+=======================================================================
+
+Row 
+-----------------------------------------------------------------------
+### Evolution of Homicides per state. 
+
+**If the chart doesn't display correctly, please refresh your browser**
+
+Select any of the 32 states to understand the evolution of the homicide rate. You can analyze the homicide rate individually or compare between states. 
+
+```{r, fig.width=7, fig.height=4, echo=FALSE}
+#Geomline per state
+# Source code: http://rpubs.com/cpsievert/275511 , we add modifications to the code
+hom_total <- hom2 %>%
+  filter(sex == "Ambos", escolaridad == "Todos", rango_edad == "Todos", !edo_code == "Todos")
+
+#
+hom_total$year <- as.Date(as.character(hom_total$year), format = "%Y")
+brks <- hom_total$year[seq(1, length(hom_total$year))]
+lbls <- lubridate::year(brks)
+
+
+h <- SharedData$new(hom_total)
+g_hom <- ggplot(h) + 
+  geom_line(aes(year, thom, group = edo_nom)) + 
+  ggtitle("Filter a state")+
+  labs(y="Homicide rate")+
+  theme_bw()
+filter <- bscols(
+  filter_select("id", "Select a state", h, ~edo_nom),
+  ggplotly(g_hom, dynamicTicks = TRUE),
+  widths = c(15,15)
+)
+
+h2 <- SharedData$new(hom_total, ~edo_nom, "Select a state")
+g_hom <- ggplot(h2) + 
+  geom_line(aes(year, thom, group = edo_nom)) +
+  ggtitle("Compare between states")+
+  labs(y="Homicide rate")+
+  theme_bw()
+select <- highlight(
+  ggplotly(g_hom, tooltip = "State"),
+  selectize = TRUE, dynamic = TRUE, persistent = TRUE
+)
+
+x<-bscols(filter, select)
+x
+
+```
+
+Gender
+=======================================================================
+
+Row 
+-----------------------------------------------------------------------
+### Total numbers of deaths
+
+```{r, echo=FALSE}
+
+total<- hom_total%>%
+  summarise(sum(homtot))
+```
+
+```{r, echo=FALSE}
+valueBox("195,909", icon = "person", color = "black")
+```
+
+```{r, echo=FALSE}
+#Total Homicides MALE
+hom_male <-hom2  %>%
+ filter(sex == "Hombre", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos")
+
+total_male <- hom_male%>%
+ summarise(sum(homtot))
+
+```
+
+### Male homicides
+```{r, echo=FALSE}
+valueBox("173,936 - 89% ", icon = "fa-male", color = "aqua")
+```
+
+```{r, echo=FALSE}
+#Total Homicide FEMALE
+
+hom_female <- hom2 %>%
+ filter(sex == "Mujer", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos")
+
+total_female<- hom_female%>%
+  summarise(sum(homtot))
+
+```
+### Female homicides
+```{r, echo=FALSE}
+
+valueBox("21,045 - 10.7% ", icon = "fa-female", color = "orange")
+
+```
+
+Row 
+-----------------------------------------------------------------------
+```{r, echo=FALSE}
+hom_male <-hom2  %>%
+ filter(sex == "Hombre", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos")
+
+colnames(hom_male)[8] <- "thom_hom"
+
+hom_male_t<-hom_male %>%
+  select("year", "thom_hom")
+
+hom_female <- hom2 %>%
+  filter(sex == "Mujer", escolaridad == "Todos", rango_edad == "Todos", edo_code == "Todos")
+
+colnames(hom_female)[8] <- "thom_female"
+
+hom_female_t<-hom_female %>%
+  select("year", "thom_female")
+
+hom_tot_t<- hom_female_t %>%
+  left_join(hom_male_t, by ="year")
+
+hom_tot_t$thom_female <-as.numeric(hom_tot_t$thom_female)
+hom_tot_t$thom_hom  <-as.numeric(hom_tot_t$thom_hom)
+
+
+hom_tot_t$year <- as.Date(as.character(hom_tot_t$year), format = "%Y")
+
+library(lubridate)
+
+
+# labels and breaks for X axis text
+brks <- hom_tot_t$year[seq(1, length(hom_tot_t$year))]
+lbls <- lubridate::year(brks)
+
+
+# plot
+p<-ggplot(hom_tot_t, aes(x=year)) + 
+  geom_line(aes(y=thom_female, col="Female rate")) + 
+  geom_line(aes(y=thom_hom, col="Male rate")) + 
+  labs(title="Time Series of Homicites per 100,000 inhabitants",
+       colour ="Gender group",
+       subtitle="National level, from 2006 to 2011", 
+       caption="Source: Data Civica", y="Homicide rate") + 
+  scale_x_date(labels = lbls, 
+               breaks = brks)
+
+p = ggplotly(p)
+
+p
+```
+
+
+Within this period, a total of 195, 909 homicides were registered, 89.2% of male victims and 10.7% of female victims. The female homicide rate follows a moderate increase from 2007 to 2013, to but doesn’t follow the peak of male homicides in 2011, and its diminishing after that period. 
+This trend is related to the higher participation of male in activities related to drug trafficking.  In contrast, the female homicides are often associated with domestic violence. 
+In Mexico by 2017, 7 out of 10 female homicides were produced by suffocation, beating or poisoning. In contrast, only 3 out of 10 male homicides have these characteristics. To respond to this situation, since 2012 Mexico introduced new legal classification: *“feminicidio”*, which correspond a homicide motivated by sexist reasons like a sense of ownership or superiority or for pleasure or sadistic desires towards women.Like the general homicides, their distribution is not uniform in all the country and states like Chihuahua, Sinaloa, and State of Mexico present a higher concentration of these crimes.
+
+Homicides & you
+=======================================================================
+
+
+** How violence has affect people like you? **
+
+To explore how many people with your sociodemographic characteristics was victim of an homicide during this period, please click on the link
+
+https://valerie.shinyapps.io/finalpr/
+
+(if the graph doesn't work please check the shinny app in the github repository)
+
+
+Discussion
+=======================================================================
+
+
+
+
+**Introduction**
+
+In 2011 Mexico got under the international spotlight for an unprecedented phenomenon: the brutal increase in violence, especially reflected in the rise of homicides. Its geographical distribution has changed over the years, reflecting the government strategies and the interaction of criminal groups.
+
+The propose of this project has disintegrated these phenomena for a better understanding, focusing on the chronology and spatial distribution of the homicides during 2006 to 2015. Additionally, we include a special section related to gender homicides, that have been increasing in Mexico. Finally, we include an interactive visualization, focus on creating a conscious among our target audience, by providing information of how this wave of homicides affected people with the same socio-demographic characteristics.
+
+ **Data**
+ 
+The database used in our analysis was provided by Data Civica and is available to the public at https://www.dropbox.com/sh/99n9h6zjasa6fdr/AAAIkr8aERhNMg-aT8IENqCoa?dl=0
+
+**Methods**
+
+For this project we use the following visualization elements:
+
+*Interactive graphs*: created with ggplotly to provide detailed information about the rate and number of homicides per year. We use column bars and line bars, as well as faced by year.
+Additionally, we use the tool “crosstalk” that was helpful for the brushing and filtering of the homicide rate of the 32 states and constructed an interactive visualization that allows the user to see the trend of one state individually or compare trends between states, assigning one color to states to facilitate the comparison.
+
+
+*Interactive maps* : due to the spatial distribution of the homicides, we constructed three interactive maps merging data with polygon layers, with data from 2006, 2011 and 2015. Additionally, the interactivity makes possible for the user to identify the states are even when it has not strong background in Mexican geography since the interactive map shows the name of the states. 
+
+*Visualization:* to support our platform, we use a flex dashboard, adding multiple elements, such as multiple pages, storyboard and value boxes to make facilitate the narrative of the project and to highlight the most important elements.
+
+
+*Shiny app:*  we created an app to involve the user with the phenomena of violence, by providing information of the total number of victims within this period that has the same socio-demographic characteristics, such as age, state of residence, level of education and gender.
+
+**Conclusion**
+
+We believe the addition of graph and interactive elements to explain the evolution of homicides was fundamental. Geographic and temporal characteristic in a static visualization makes that the reader have to do an extra effort to estimate the values in the trends and also require to have a background on the localization of the states to fully understand the message.
+This information can be shared with a broader audience to have a clear idea about homicides in Mexico. Additionally, with more information on characteristics related to homicides, it will be possible to increase the explanatory power of this dashboard and shiny application.
+
