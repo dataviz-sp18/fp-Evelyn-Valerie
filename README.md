@@ -10,7 +10,7 @@ After opening the browser, please refresh the page for a correct displayto of st
 
 Introduction
 
-In 2011 Mexico got under the international spotlight for an unprecedented phenomenon: the brutal increase in violence, especially reflected in the rise of homicides. Its geographical distribution has changed over the years, reflecting the government strategies and the interaction of criminal groups.
+In 2011, Mexico got under the international spotlight for an unprecedented phenomenon: the brutal increase in violence, especially reflected in the rise of homicides. Its geographical distribution has changed over the years, reflecting the government strategies and the interaction of criminal groups.
 
 The propose of this project has disintegrated these phenomena for a better understanding, focusing on the chronology and spatial distribution of the homicides during 2006 to 2015. Additionally, we include a special section related to gender homicides, that have been increasing in Mexico. Finally, we include an interactive visualization, focus on creating a conscious among our target audience, by providing information of how this wave of homicides affected people with the same socio-demographic characteristics.
 
