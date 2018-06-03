@@ -2,7 +2,7 @@
 
 # Homicides in Mexico: 2006 to 2015
 
-**Please find the link to the dashboard here: **
+** Please find the link to the dashboard here: **
 
 
 
