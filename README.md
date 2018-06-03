@@ -8,8 +8,6 @@ After opening the browser, please refrech the page, so the state graph can be co
 
 **The shinny app is contained in the files of this repository, pleas open it from the repository**
 
-
-
 Introduction
 
 In 2011 Mexico got under the international spotlight for an unprecedented phenomenon: the brutal increase in violence, especially reflected in the rise of homicides. Its geographical distribution has changed over the years, reflecting the government strategies and the interaction of criminal groups.
