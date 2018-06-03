@@ -34,7 +34,7 @@ Conclusion
 
 We believe the addition of graph and interactive elements to explain the evolution of homicides was fundamental. Geographic and temporal characteristic in a static visualization makes that the reader have to do an extra effort to estimate the values in the trends and also require to have a background on the localization of the states to fully understand the message. This information can be shared with a broader audience to have a clear idea about homicides in Mexico. Additionally, with more information on characteristics related to homicides, it will be possible to increase the explanatory power of this dashboard and shiny application.
 
-# Required libraries in R:
+# Required libraries in R 1.1383:
 
 Library(raster)
 library(sp)
